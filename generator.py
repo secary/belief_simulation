@@ -8,7 +8,7 @@ import json, os, time
 def belief_generator(agent_num: int = 10,
          topic_num: int = 3,
          export: bool = False,
-         save_dir: str = "./simulations",
+         save_dir: str = f"./simulations/{time.strftime("%Y%m%d_%H%M%S")}",
          seed: int = None):
     """
     Generate W (social network), C (logic matrices), and X0 (initial beliefs),
