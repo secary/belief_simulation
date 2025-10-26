@@ -11,7 +11,7 @@ $$
 
 ## $W$初始生成函数
 * 目的：测试不同$W$的社交网络结构的最终收敛
-    Random Networks
+* Random Networks
   * Watts-Strogatz model
   * Barabasi-Albert model
   * Erdos-Renyi model
