@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.stats import beta
 import json, os, time
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 class LogicMatrix:
     """
@@ -16,8 +18,6 @@ class LogicMatrix:
         n=100,                # 个体数量
         m=3,                  # 主题数量
         beta_params=(2, 5),   # Beta 分布参数 (α, β)
-        heterogeneity=0.1,    # 个体间差异强度
-        sparsity=0.5,         # 非零元素比例
         random_beta=False,    # 是否随机 Beta 参数
         seed=None
     ):
@@ -29,10 +29,8 @@ class LogicMatrix:
         self.n = n
         self.m = m
         self.beta_params = beta_params
-        self.heterogeneity = heterogeneity
-        self.sparsity = sparsity
+        self.heterogeneity = float(np.random.default_rng(seed).uniform(0.05, 0.2))
         self.random_beta = random_beta
-
         self.C_base = None
         self.C_list = None
 
@@ -41,33 +39,51 @@ class LogicMatrix:
         """Generate baseline logic matrix C_base and heterogeneous C_i list."""
         rng = self.rng
 
-        # 1️⃣ 确定 Beta 分布参数
+        # 1) Beta 参数
         if self.random_beta:
             a = rng.uniform(0.5, 5)
             b = rng.uniform(0.5, 5)
             self.beta_params = (a, b)
         a, b = self.beta_params
 
-        # 2️⃣ 生成基准逻辑矩阵 C_base
-        C_base = np.eye(self.m)
+        # 2) 生成 C_base（下三角 + 允许正负号 + 绝对值行随机）
+        C_base = np.zeros((self.m, self.m))
+
         for i in range(self.m):
-            for j in range(self.m):
-                if i != j and rng.random() < self.sparsity:
-                    val = beta.rvs(a, b, random_state=rng)   # Beta 分布抽样
-                    sign = rng.choice([-1, 1])               # 随机正负符号
-                    C_base[i, j] = sign * val * 0.5          # 控制幅度在 ±0.5
+            # 对角线（始终保留 inertia）
+            C_base[i, i] = 1.0
 
-        # 行归一化，防止过大权重
-        row_norm = np.sum(np.abs(C_base), axis=1, keepdims=True)
-        row_norm[row_norm == 0] = 1
-        C_base = C_base / row_norm
+            if i > 0:
+                # 下三角随机（Beta × ±1）
+                raw = []
+                for j in range(i):
+                    val = beta.rvs(a, b, random_state=rng)
+                    sign = rng.choice([-1, 1])
+                    raw.append(sign * val)
 
-        # 3️⃣ 添加个体异质性
+                # 拼回行向量
+                C_base[i, :i] = raw
+
+                # ======== 🔥 行绝对值归一化 (关键!) ========
+                row_abs_sum = np.sum(np.abs(C_base[i, :i+1]))
+                C_base[i, :i+1] = C_base[i, :i+1] / row_abs_sum
+
+        # 3) 个体异质性（并保持 absolute row-stochastic）
         C_list = []
         for _ in range(self.n):
-            noise = self.heterogeneity * rng.uniform(-0.05, 0.05, size=(self.m, self.m))
-            C_i = C_base + noise
-            C_i = C_i / np.max(np.sum(np.abs(C_i), axis=1))
+            C_i = C_base + self.heterogeneity * rng.normal(0, 0.02, size=(self.m, self.m))
+
+            # 保持下三角
+            C_i = np.tril(C_i)
+
+            # 保持每行 absolute row stochastic
+            for i in range(self.m):
+                row_abs_sum = np.sum(np.abs(C_i[i, :i+1]))
+                if row_abs_sum == 0:
+                    C_i[i, i] = 1.0
+                else:
+                    C_i[i, :i+1] /= row_abs_sum
+
             C_list.append(C_i)
 
         self.C_base = C_base
@@ -89,7 +105,6 @@ class LogicMatrix:
         print(f"Agents (n): {self.n}")
         print(f"Topics (m): {self.m}")
         print(f"Beta(α,β): {tuple(round(x,3) for x in self.beta_params)}")
-        print(f"Sparsity: {self.sparsity:.2f}")
         print(f"Heterogeneity: {self.heterogeneity:.2f}")
         print(f"Non-zero ratio: {non_zero_ratio:.3f}")
         print(f"Average off-diagonal weight: {avg_offdiag:.3f}")
@@ -122,4 +137,65 @@ class LogicMatrix:
         }
         
         return info
+    
+
+    def visualize(self, show_individual=False):
+        """
+        Visualize:
+        1) Heatmap of C_base
+        2) Histogram of non-zero off-diagonal entries
+        3) (Optional) Histogram for all C_i
+
+        Parameters
+        ----------
+        show_individual : bool
+            If True, also show histograms for all C_i combined.
+        """
+        if self.C_base is None:
+            raise ValueError("Please call .generate() before visualize().")
+
+        C_base = self.C_base
+        abs_vals = np.abs(C_base)
+        nonzero_vals = abs_vals[np.tril(np.ones_like(C_base), k=-1) == 1]  # 仅下三角非零
+
+        # -----------------------------
+        # 1️⃣ Heatmap of C_base
+        # -----------------------------
+        plt.figure(figsize=(6, 4))
+        sns.heatmap(C_base, annot=False, cmap="RdBu", center=0)
+        plt.title("Heatmap of C_base (Lower Triangular Structure)")
+        plt.xlabel("Topic j")
+        plt.ylabel("Topic i")
+        plt.tight_layout()
+        plt.show()
+
+        # -----------------------------
+        # 2️⃣ Histogram of non-zero weights
+        # -----------------------------
+        plt.figure(figsize=(6, 4))
+        plt.hist(nonzero_vals.flatten(), bins=20, color='steelblue', alpha=0.8)
+        plt.title("Histogram of |C_base| Off-diagonal Weights")
+        plt.xlabel("Absolute Weight")
+        plt.ylabel("Frequency")
+        plt.tight_layout()
+        plt.show()
+
+        # -----------------------------
+        # 3️⃣ All C_i combined (optional)
+        # -----------------------------
+        if show_individual:
+            all_vals = []
+            for C_i in self.C_list:
+                Ci_abs = np.abs(C_i)
+                Ci_vals = Ci_abs[np.tril(np.ones_like(C_i), k=-1) == 1]
+                all_vals.extend(Ci_vals.flatten())
+
+            plt.figure(figsize=(6, 4))
+            plt.hist(all_vals, bins=20, color='orange', alpha=0.75)
+            plt.title("Histogram of All C_i Off-diagonal Weights")
+            plt.xlabel("Absolute Weight")
+            plt.ylabel("Frequency")
+            plt.tight_layout()
+            plt.show()
+
         

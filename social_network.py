@@ -89,7 +89,10 @@ class SocialNetwork:
         # 行归一化（保证行随机）
         row_sum = W.sum(axis=1, keepdims=True)
         zero_rows = (row_sum[:, 0] == 0)
-        W[zero_rows, zero_rows] = 1.0
+        if zero_rows.any():
+            W[zero_rows, :] = 1.0
+            W[zero_rows, :] /= W[zero_rows, :].sum(axis=1, keepdims=True)
+
         W = W / W.sum(axis=1, keepdims=True)
 
         # 存储结果
@@ -265,3 +268,22 @@ class SocialNetwork:
         print(f"✅ Exported Gephi network to: {g_path}")
 
         return info
+    
+    def plot_hist(self, bins=30):
+        """Plot histogram of non-zero weights in W."""
+        if self.W is None:
+            raise ValueError("Please call .generate() first.")
+
+        W = self.W
+        weights = W[W > 0].flatten()  # 取所有非零边权
+
+        plt.figure(figsize=(7, 4))
+        plt.hist(weights, bins=bins, color="skyblue", edgecolor="black", alpha=0.8)
+
+        plt.title("Histogram of Non-zero Weights in $W$", fontsize=14)
+        plt.xlabel("Weight value", fontsize=12)
+        plt.ylabel("Frequency", fontsize=12)
+        plt.grid(alpha=0.3)
+
+        plt.tight_layout()
+        plt.show()
