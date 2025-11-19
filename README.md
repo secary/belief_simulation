@@ -57,12 +57,14 @@ Interactive notebook for testing:
 # Simulation Pipeline
 
 1. Generate $W $, $C_i $, and $X_0$
-2. Update beliefs over time using  
+2. Update beliefs over time using 
+    
 $$
 X(t+1) = \sum_{j=1}^n W_{ij} \, C_i \, x_j(t).
 $$
-3. Stop when converged or max steps reached  
-4. Visualize belief trajectories and network structure
+
+3. Visualise belief trajectories 
+
 
 ---
 
