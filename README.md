@@ -44,7 +44,7 @@ Creates baseline and heterogeneous logic matrices $C_i $.
 
 ### **3. `init_belief.py`**
 Generates initial beliefs $X_0 $.  
-Modes: `uniform`, `beta`.
+Modes: `uniform`, `beta`.  
 Exports all results into a timestamped folder.
 
 ### **4. `belief_simulation.ipynb`**
