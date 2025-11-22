@@ -6,7 +6,7 @@ A modular platform for generating and simulating belief system dynamics on socia
 The framework produces:
 - Social influence matrices $W$
 - Heterogeneous logic matrices $C_i$
-- Initial beliefs $X_0 $
+- Initial beliefs $X_0$
 
 and supports exporting, visualization, and downstream simulation.
 
@@ -14,7 +14,7 @@ and supports exporting, visualization, and downstream simulation.
 
 # Model Overview
 
-Each agent $i $holds an $m $-dimensional belief vector $x_i(t) $.  
+Each agent $i$ holds an $m$-dimensional belief vector $x_i(t)$.  
 Belief updates follow the extended DeGroot model:
 
 $$
@@ -22,28 +22,28 @@ x_i(t+1) = \sum_{j=1}^n W_{ij} \, C_i \, x_j(t).
 $$
 
 - $W$: row-stochastic influence matrix  
-- $C_i $: logic matrix encoding topic dependencies  
-- Heterogeneity in $C_i $may lead to consensus or persistent disagreement
+- $C_i$: logic matrix encoding topic dependencies  
+- Heterogeneity in $C_i$ may lead to consensus or persistent disagreement
 
 ---
 
 # Repository Structure
 
 ### **1. `social_network.py`**
-Generates the influence matrix $W $using ER, WS, BA, or Random-Regular models.  
+Generates the influence matrix $W$ using ER, WS, BA, or Random-Regular models.  
 - Beta-distributed edge weights  
 - Ensures row-stochasticity  
 - Provides network summary + Gephi export
 
 ### **2. `logic_matrix.py`**
-Creates baseline and heterogeneous logic matrices $C_i $.  
+Creates baseline and heterogeneous logic matrices $C_i$.  
 - Lower-triangular structure  
 - Beta-distributed coefficients  
 - Supports sparsity & heterogeneity  
-- Exports baseline $C_{\text{base}} $
+- Exports baseline $C_{\text{base}}$
 
 ### **3. `init_belief.py`**
-Generates initial beliefs $X_0 $.  
+Generates initial beliefs $X_0$.  
 Modes: `uniform`, `beta`.  
 Exports all results into a timestamped folder.
 
@@ -56,7 +56,7 @@ Interactive notebook for testing:
 
 # Simulation Pipeline
 
-1. Generate $W $, $C_i $, and $X_0$
+1. Generate $W$, $C_i$, and $X_0$
 2. Update beliefs over time using 
     
 $$
