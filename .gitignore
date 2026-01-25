@@ -1,0 +1,33 @@
+# .gitignore
+.vscode
+.venv
+.envrc
+__pycache__/
+
+references/
+*.ps1
+*debug*
+*draft*
+*demo*
+*.mp4
+presentation/slide
+note*
+
+# latex
+*.bat
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.nav
+*.snm
+*.vrb
+*.bbl
+*.blg
+*.lof
+*.lot
+*.xdv
+# latexmkrc
