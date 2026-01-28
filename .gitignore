@@ -3,6 +3,7 @@
 .venv
 .envrc
 __pycache__/
+*.Ds_Store
 
 references/
 *.ps1
@@ -31,3 +32,4 @@ note*
 *.lot
 *.xdv
 # latexmkrc
+
