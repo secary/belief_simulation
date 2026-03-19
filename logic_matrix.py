@@ -36,49 +36,88 @@ class LogicMatrix:
 
     # ----------------------------------------------------------
     def generate(self):
-        """Generate baseline logic matrix C_base and heterogeneous C_i list."""
+        """Generate logic matrices using Eq.(19) with Beta distribution."""
         rng = self.rng
 
-        # 1) Beta 参数
         if self.random_beta:
             a = rng.uniform(0.5, 5)
             b = rng.uniform(0.5, 5)
             self.beta_params = (a, b)
+
         a, b = self.beta_params
 
+        C_list = []
 
-        C_base = np.zeros((self.m, self.m))
+        # ===== 可控符号概率（你可以调）=====
+        def project_pair(x, y):
+            s = abs(x) + abs(y)
+            if s > 1:
+                x = x / s
+                y = y / s
+            return x, y
+        
+        p_sign = {
+            "eta": 0.7,
+            "beta": 0.5,
+            "mu": 0.3,
+            "delta": 0.5
+        }
 
-        for i in range(self.m):
-            C_base[i, i] = 1.0
+        def sample_param(name):
+            val = beta.rvs(a, b, random_state=rng)
+            sign = 1 if rng.random() < p_sign[name] else -1
+            return sign * val
 
-            if i > 0:
-                raw = []
+        for _ in range(self.n):
+
+            # ===== 1️⃣ 采样参数 =====
+            eta   = sample_param("eta")
+            beta_i = sample_param("beta")
+            eta, beta_i = project_pair(eta, beta_i)
+
+            mu    = sample_param("mu")
+            delta = sample_param("delta")
+            mu, delta = project_pair(mu, delta)
+            
+            # ===== 2️⃣ 构造 C_i（核心！）=====
+            C_i = np.zeros((self.m, self.m))
+
+            # 第一行（root）
+            C_i[0, 0] = 1.0
+
+            if self.m >= 2:
+                C_i[1, 0] = eta
+                C_i[1, 1] = 1 - (abs(eta) + abs(beta_i))
+                C_i[1, 2] = -beta_i if self.m >= 3 else 0
+
+            if self.m >= 3:
+                C_i[2, 0] = mu
+                C_i[2, 1] = -delta
+                C_i[2, 2] = 1 - (abs(mu) + abs(delta))
+
+            # ===== 3️⃣ 高维扩展（如果 m > 3）=====
+            for i in range(3, self.m):
+                row_vals = []
+
                 for j in range(i):
                     val = beta.rvs(a, b, random_state=rng)
                     sign = rng.choice([-1, 1])
-                    raw.append(sign * val)
+                    row_vals.append(sign * val)
 
-                C_base[i, :i] = raw
+                row_vals = np.array(row_vals)
 
-                row_abs_sum = np.sum(np.abs(C_base[i, :i+1]))
-                C_base[i, :i+1] = C_base[i, :i+1] / row_abs_sum
+                row_abs_sum = np.sum(np.abs(row_vals))
+                if row_abs_sum > 0:
+                    row_vals /= row_abs_sum
 
-        C_list = []
-        for _ in range(self.n):
-            C_i = C_base + self.heterogeneity * rng.normal(0, 0.02, size=(self.m, self.m))
-            C_i = np.tril(C_i)
-            for i in range(self.m):
-                row_abs_sum = np.sum(np.abs(C_i[i, :i+1]))
-                if row_abs_sum == 0:
-                    C_i[i, i] = 1.0
-                else:
-                    C_i[i, :i+1] /= row_abs_sum
+                C_i[i, :i] = row_vals
+                C_i[i, i] = 1 - np.sum(np.abs(row_vals))
 
             C_list.append(C_i)
 
-        self.C_base = C_base
         self.C_list = C_list
+        self.C_base = C_list[0]
+
         return self
 
 
