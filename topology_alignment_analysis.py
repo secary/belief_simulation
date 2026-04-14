@@ -5,17 +5,16 @@ Run alpha-alignment experiments across multiple network topologies and
 produce:
 1. Replication-level results
 2. Topology-wise summary statistics
-3. Topology-wise trend statistics for H3
+3. Topology-wise trend statistics for the alpha-alignment hypothesis
 4. Alpha-alignment relationship plots
 
-Main hypothesis (H3):
+Main hypothesis:
     As alpha increases, the alignment distance to the KOL decreases.
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import os
 import tempfile
 from pathlib import Path
@@ -23,8 +22,6 @@ from pathlib import Path
 os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "mplconfig"))
 os.environ.setdefault("XDG_CACHE_HOME", str(Path(tempfile.gettempdir()) / "xdg-cache"))
 
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import linregress, spearmanr
@@ -80,12 +77,13 @@ def _run_single_experiment(
     T: int,
     kol_index: int,
 ):
+    """
+    Run one simulation and return only the scalar metrics used downstream.
+    """
     C_kol = inject_kol(C_tensor, C_base, alpha=alpha, kol_index=kol_index)
     traj = simulate(W, C_kol, X0, T=T)
     alignment_traj = alignment_with_kol(traj, kol_index=kol_index)
     return {
-        "traj": traj,
-        "alignment_traj": alignment_traj,
         "final_alignment": float(alignment_traj[-1]),
         "mean_alignment": float(np.mean(alignment_traj)),
     }
@@ -106,7 +104,7 @@ def run_topology_alpha_sweep(
     """
     Sweep alpha across multiple topologies and replications.
 
-    Returns a list of dict rows suitable for summary tables and plotting.
+    Returns replication-level rows suitable for summary tables and plotting.
     """
     rows = []
     alpha_values = [float(alpha) for alpha in alpha_values]
@@ -176,7 +174,7 @@ def summarize_results(rows):
     return summary_rows
 
 
-def analyse_h3_by_topology(rows):
+def analyse_hypothesis_by_topology(rows):
     """
     Fit topology-wise alpha -> alignment trends.
 
@@ -206,7 +204,7 @@ def analyse_h3_by_topology(rows):
                 "p_value_linear": float(lin.pvalue),
                 "spearman_rho": float(spear.statistic),
                 "p_value_spearman": float(spear.pvalue),
-                "supports_h3": bool(lin.slope < 0 and spear.statistic < 0),
+                "supports_hypothesis": bool(lin.slope < 0 and spear.statistic < 0),
             }
         )
 
@@ -308,21 +306,11 @@ def plot_topology_panels(
     else:
         plt.close(fig)
 
-
-def _write_csv(rows, path: str | Path):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    if not rows:
-        raise ValueError("No rows to write.")
-
-    with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
-
-
 def main():
+    # Use a non-interactive backend only for CLI/script usage so notebook imports
+    # can still display figures inline.
+    plt.switch_backend("Agg")
+
     parser = argparse.ArgumentParser(
         description="Run alpha-alignment analysis across topologies."
     )
@@ -344,15 +332,8 @@ def main():
     )
     parser.add_argument("--belief-mode", default="uniform")
     parser.add_argument("--kol-index", type=int, default=0)
-    parser.add_argument(
-        "--output-dir",
-        default="code/outputs/topology_alignment",
-    )
     parser.add_argument("--no-show", action="store_true")
     args = parser.parse_args()
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     rows = run_topology_alpha_sweep(
         agent_num=args.agents,
@@ -367,30 +348,24 @@ def main():
         base_seed=args.seed,
     )
     summary_rows = summarize_results(rows)
-    trend_rows = analyse_h3_by_topology(rows)
-
-    _write_csv(rows, output_dir / "replication_results.csv")
-    _write_csv(summary_rows, output_dir / "summary_results.csv")
-    _write_csv(trend_rows, output_dir / "topology_h3_tests.csv")
+    trend_rows = analyse_hypothesis_by_topology(rows)
 
     plot_alpha_alignment(
         summary_rows,
-        output_path=output_dir / "alpha_alignment_all_topologies.png",
         show=not args.no_show,
     )
     plot_topology_panels(
         summary_rows,
-        output_path=output_dir / "alpha_alignment_topology_panels.png",
         show=not args.no_show,
     )
 
-    print(f"Saved outputs to: {output_dir}")
-    print("H3 trend summary:")
+    print(f"Replications: {len(rows)}")
+    print("Hypothesis trend summary:")
     for row in trend_rows:
         print(
             f"{row['topology']}: slope={row['slope']:.4f}, "
             f"spearman_rho={row['spearman_rho']:.4f}, "
-            f"supports_h3={row['supports_h3']}"
+            f"supports_hypothesis={row['supports_hypothesis']}"
         )
 
 

@@ -29,6 +29,15 @@ from social_network import SocialNetwork
 MetricLike = str
 
 
+def format_p_value(p_value: float) -> str:
+    """
+    Format p-values for display without collapsing tiny values to 0.
+    """
+    if p_value < 1e-16:
+        return "< 1e-16"
+    return f"{p_value:.3e}"
+
+
 @dataclass
 class PairedTestResult:
     metric_name: str
@@ -53,6 +62,7 @@ class PairedTestResult:
             "treatment_mean": self.treatment_mean,
             "observed_effect": self.observed_effect,
             "p_value": self.p_value,
+            "p_value_display": format_p_value(self.p_value),
             "ci_low": self.ci_low,
             "ci_high": self.ci_high,
         }
@@ -110,11 +120,15 @@ def paired_permutation_test(
     null_stats = (signs * differences).mean(axis=1)
 
     if alternative == "greater":
-        p_value = np.mean(null_stats >= observed)
+        exceedances = np.count_nonzero(null_stats >= observed)
     elif alternative == "less":
-        p_value = np.mean(null_stats <= observed)
+        exceedances = np.count_nonzero(null_stats <= observed)
     else:
-        p_value = np.mean(np.abs(null_stats) >= abs(observed))
+        exceedances = np.count_nonzero(np.abs(null_stats) >= abs(observed))
+
+    # Use the standard +1 correction so Monte Carlo permutation p-values
+    # never collapse to exactly 0 just because no resample exceeded the test statistic.
+    p_value = (exceedances + 1.0) / (n_resamples + 1.0)
 
     bootstrap_idx = rng.integers(0, differences.size, size=(n_resamples, differences.size))
     bootstrap_stats = differences[bootstrap_idx].mean(axis=1)
